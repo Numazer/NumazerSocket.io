@@ -2,8 +2,11 @@ import cors from "cors";
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import { Puissance4 } from "./games/Puissance4.js";
 
 const app = express();
+const games = {};
+
 app.use(
     cors({
         origin: ["http://localhost:5173", "https://socket-io-front.vercel.app"],
@@ -88,6 +91,31 @@ io.on("connection", (socket) => {
         // Décrémenter le compteur et émettre à la déconnexion
         connectedUsers--;
         io.emit("users count", connectedUsers);
+    });
+
+    // --- Gestion du jeu Puissance4 dans les rooms ---
+    socket.on("newGame", (roomId) => {
+        // Crée une nouvelle partie pour cette room
+        games[roomId] = new Puissance4();
+        console.log(`Nouvelle partie créée dans la room ${roomId}`);
+        // Notifie tous les joueurs de la room
+        io.to(roomId).emit("gameStarted", { board: games[roomId].board });
+    });
+
+    socket.on("play", ({ roomId, column }) => {
+        const game = games[roomId];
+        if (!game) return;
+
+        const result = game.play(column);
+
+        // Émettre l’état du jeu mis à jour à tous les joueurs de la room
+        io.to(roomId).emit("gameUpdate", {
+            board: game.board,
+            currentPlayer: game.currentPlayer,
+            winner: game.winner,
+            lastMove: column,
+            validMove: result !== false
+        });
     });
 });
 
